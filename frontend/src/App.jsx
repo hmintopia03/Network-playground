@@ -18,7 +18,7 @@ ChartJS.register(
   LineElement,
   Tooltip,
   Legend
-);
+)
  
 const API_BASE = "http://localhost:8000";
  
