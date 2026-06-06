@@ -28,8 +28,9 @@ Redis
 
 Network faults are injected inside the backend container using `tc`/`netem`.
 
-## Screenshots
+## Screenshot
 
+![Network Playground Dashboard](dashboard.png)
 
 ## Run
 

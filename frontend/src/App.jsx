@@ -23,9 +23,9 @@ ChartJS.register(
   Legend,
   Filler
 );
- 
+
 const API_BASE = "http://localhost:8000";
- 
+
 function App() {
   const [status, setStatus] = useState(null);
   const [probe, setProbe] = useState(null);
@@ -105,7 +105,10 @@ function App() {
       });
       await fetchStatus();
       await runProbe();
-      addEvent(`Injected latency: ${delayMs}ms`);
+      addEvent(
+        "LATENCY",
+        Number(jitterMs) > 0 ? `${delayMs}ms ±${jitterMs}ms` : `${delayMs}ms`
+      );
     } finally {
       setLoading(false);
     }
@@ -119,7 +122,7 @@ function App() {
       });
       await fetchStatus();
       await runProbe();
-      addEvent("Reset network");
+      addEvent("RESET", "Network restored");
     } finally {
       setLoading(false);
     }
@@ -139,7 +142,7 @@ function App() {
       });
       await fetchStatus();
       await runProbe();
-      addEvent(`Injected packet loss: ${lossPercent}%`);
+      addEvent("PACKET LOSS", `${lossPercent}%`);
     } finally {
       setLoading(false);
     }
@@ -157,7 +160,7 @@ function App() {
       });
       await fetchStatus();
       await runProbe();
-      addEvent(`Applied preset: ${name}`);
+      addEvent("PRESET", formatPresetName(name));
     } finally {
       setLoading(false);
     }
@@ -174,17 +177,59 @@ function App() {
     return "Healthy";
   }
 
-  function addEvent(message) {
-  setEvents((previous) => [
-    {
-      time: new Date().toLocaleTimeString(),
-      message,
-    },
-    ...previous.slice(0, 9),
-  ]);
-}
+  function addEvent(type, detail) {
+    const newEvent = { time: new Date().toLocaleTimeString(), type, detail };
+    setEvents((previous) => [newEvent, ...previous].slice(0, 50));
+  }
+
+  function formatPresetName(preset) {
+    const names = {
+      normal: "Normal",
+      slow: "Slow Network",
+      "bad-wifi": "Bad WiFi",
+      broken: "Broken Network",
+      custom: "Custom",
+    };
+
+    return names[preset] ?? "-";
+  }
+
+  function getHealthColor(health) {
+    switch (health) {
+      case "Healthy":
+        return "#22c55e";
+      case "Slow":
+        return "#eab308";
+      case "Degraded":
+        return "#f97316";
+      case "Broken":
+        return "#ef4444";
+      case "Faulted":
+        return "#f97316";
+      default:
+        return "white";
+    }
+  }
+
+  function getEventColor(type) {
+    switch (type) {
+      case "LATENCY":
+        return "#38bdf8";
+      case "PACKET LOSS":
+        return "#f97316";
+      case "PRESET":
+        return "#a855f7";
+      case "RESET":
+        return "#22c55e";
+      case "PROBE":
+        return "#ef4444";
+      default:
+        return "#94a3b8";
+    }
+  }
 
   const networkHealth = getNetworkHealth(status);
+  const healthColor = getHealthColor(networkHealth);
 
   useEffect(() => {
     fetchStatus();
@@ -198,12 +243,15 @@ function App() {
     return () => clearInterval(intervalId);
   }, []);
 
+  const totalProbes = probeHistory.length;
   const successfulProbes = probeHistory.filter((item) => item.success).length;
+  const failures = totalProbes - successfulProbes;
 
   const successRate =
-    probeHistory.length === 0
+    totalProbes === 0
       ? 100
-      : Math.round((successfulProbes / probeHistory.length) * 100);
+      : Math.round((successfulProbes / totalProbes) * 100);
+
   return (
     <main style={styles.page}>
       <h1>Network Playground v0.2</h1>
@@ -213,6 +261,9 @@ function App() {
       <section style={styles.grid}>
         <Card title="Latency">
           <strong>{status?.latency_ms ?? "-"} ms</strong>
+          <span style={styles.cardSub}>
+            jitter ±{status?.jitter_ms ?? 0} ms
+          </span>
         </Card>
 
         <Card title="Packet Loss">
@@ -220,27 +271,34 @@ function App() {
         </Card>
 
         <Card title="Network Health">
-          <strong>{networkHealth}</strong>
+          <div style={styles.healthRow}>
+            <span style={{ ...styles.healthDot, background: healthColor }} />
+            <strong style={{ color: healthColor }}>{networkHealth}</strong>
+          </div>
         </Card>
 
-        <Card title="Probe Duration">
+        <Card title="Current Preset">
+          <strong>{formatPresetName(status?.preset)}</strong>
+        </Card>
+
+        <Card title="Last Result">
           <strong>
             {probe?.success ? `${probe.duration_ms} ms` : "FAILED"}
           </strong>
         </Card>
 
-        <Card title="Last Probe">
-          <strong>{probe?.success ? "Success" : "Failed"}</strong>
-        </Card>
-
-        <Card title="Jitter">
-          <strong>{status?.jitter_ms ?? "-"} ms</strong>
-        </Card>
         <Card title="Success Rate">
           <strong>{successRate}%</strong>
         </Card>
-        <Card title="Current Preset">
-          <strong>{status?.preset ?? "-"}</strong>
+
+        <Card title="Total Probes">
+          <strong>{totalProbes}</strong>
+        </Card>
+
+        <Card title="Failures">
+          <strong style={{ color: failures > 0 ? "#ef4444" : "white" }}>
+            {failures}
+          </strong>
         </Card>
       </section>
 
@@ -248,45 +306,55 @@ function App() {
         <h2>Fault Injection</h2>
 
         <div style={styles.controls}>
-          <input
-            type="number"
-            value={delayMs}
-            onChange={(event) => setDelayMs(event.target.value)}
-            style={styles.input}
-          />
+          <label style={styles.field}>
+            <span style={styles.fieldLabel}>Latency (ms)</span>
+            <input
+              type="number"
+              value={delayMs}
+              onChange={(event) => setDelayMs(event.target.value)}
+              style={styles.input}
+            />
+          </label>
 
-          <input
-            type="number"
-            value={jitterMs}
-            onChange={(event) => setJitterMs(event.target.value)}
-            style={styles.input}
-          />
+          <label style={styles.field}>
+            <span style={styles.fieldLabel}>Jitter (ms)</span>
+            <input
+              type="number"
+              min="0"
+              value={jitterMs}
+              onChange={(event) => setJitterMs(event.target.value)}
+              style={styles.input}
+            />
+          </label>
 
+          <label style={styles.field}>
+            <span style={styles.fieldLabel}>Packet Loss (%)</span>
+            <input
+              type="number"
+              min="0"
+              max="80"
+              value={lossPercent}
+              onChange={(event) => setLossPercent(event.target.value)}
+              style={styles.input}
+            />
+          </label>
+        </div>
+
+        <div style={styles.buttonRow}>
           <button onClick={injectLatency} disabled={loading} style={styles.button}>
             Inject Latency
           </button>
 
-          <button onClick={resetNetwork} disabled={loading} style={styles.secondaryButton}> 
+          <button onClick={injectPacketLoss} disabled={loading} style={styles.button}>
+            Inject Packet Loss
+          </button>
+
+          <button onClick={resetNetwork} disabled={loading} style={styles.secondaryButton}>
             Reset Network
           </button>
 
           <button onClick={runProbe} disabled={loading} style={styles.secondaryButton}>
             Run Probe
-          </button>
-        </div>
-
-        <div style={styles.controls}>
-          <input
-            type="number"
-            min="0"
-            max="80"
-            value={lossPercent}
-            onChange={(event) => setLossPercent(event.target.value)}
-            style={styles.input}
-          />
-
-          <button onClick={injectPacketLoss} disabled={loading} style={styles.button}>
-            Inject Packet Loss
           </button>
         </div>
 
@@ -359,7 +427,6 @@ function App() {
 
               y: {
                 min: 0,
-                max: 600,
 
                 ticks: {
                   color: "#94a3b8",
@@ -390,13 +457,28 @@ function App() {
       </section>
 
       <section style={styles.panel}>
-        <h2>Event Log</h2>
-
+        <div style={styles.panelHeader}>
+          <h2 style={{ margin: 0 }}>Event Log</h2>
+          <button onClick={() => setEvents([])} style={styles.secondaryButton}>
+            Clear
+          </button>
+        </div>
         <div style={styles.historyList}>
           {events.map((event, index) => (
             <div key={index} style={styles.historyItem}>
               <span>{event.time}</span>
-              <strong>{event.message}</strong>
+              <span>
+                <strong
+                  style={{
+                    color: getEventColor(event.type),
+                    fontWeight: "bold",
+                  }}
+                >
+                  {event.type}
+                </strong>
+                <span style={{ opacity: 0.4, margin: "0 8px" }}>|</span>
+                {event.detail}
+              </span>
             </div>
           ))}
         </div>
@@ -404,7 +486,7 @@ function App() {
     </main>
   );
 }
- 
+
 function Card({ title, children }) {
   return (
     <div style={styles.card}>
@@ -413,7 +495,7 @@ function Card({ title, children }) {
     </div>
   );
 }
- 
+
 const styles = {
   page: {
     minHeight: "100vh",
@@ -427,7 +509,7 @@ const styles = {
   },
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
     gap: "16px",
     marginTop: "32px",
   },
@@ -445,6 +527,25 @@ const styles = {
   cardValue: {
     marginTop: "12px",
     fontSize: "28px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "4px",
+  },
+  cardSub: {
+    fontSize: "12px",
+    color: "#64748b",
+    fontWeight: "normal",
+  },
+  healthRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  },
+  healthDot: {
+    width: "10px",
+    height: "10px",
+    borderRadius: "50%",
+    display: "inline-block",
   },
   panel: {
     marginTop: "24px",
@@ -453,9 +554,25 @@ const styles = {
     borderRadius: "16px",
     padding: "20px",
   },
+  panelHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "16px",
+  },
   controls: {
     display: "flex",
     gap: "12px",
+    flexWrap: "wrap",
+  },
+  field: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+  },
+  fieldLabel: {
+    fontSize: "12px",
+    color: "#94a3b8",
   },
   input: {
     padding: "10px 12px",
@@ -463,6 +580,12 @@ const styles = {
     border: "1px solid #475569",
     background: "#0f172a",
     color: "white",
+  },
+  buttonRow: {
+    display: "flex",
+    gap: "12px",
+    marginTop: "16px",
+    flexWrap: "wrap",
   },
   button: {
     padding: "10px 16px",
@@ -491,11 +614,11 @@ const styles = {
     border: "1px solid #334155",
   },
   presetRow: {
-  display: "flex",
-  gap: "12px",
-  marginTop: "16px",
-  flexWrap: "wrap",
-},
+    display: "flex",
+    gap: "12px",
+    marginTop: "16px",
+    flexWrap: "wrap",
+  },
 };
- 
+
 createRoot(document.getElementById("root")).render(<App />);
