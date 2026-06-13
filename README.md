@@ -63,7 +63,9 @@ Network faults are injected inside the backend container using `tc`/`netem`.
 
 ## Screenshot
 
+
 ![Network Playground Dashboard](dashboard.png)
+
 
 ## Run
 
@@ -86,7 +88,7 @@ docker compose up --build
 | POST   | `/network/preset`       | Apply a named preset                 |
 | POST   | `/network/reset`        | Clear all injected faults            |
 
-### Examples
+## Examples
 
 ```bash
 curl -X POST http://localhost:8000/network/latency \
