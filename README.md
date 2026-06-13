@@ -1,20 +1,53 @@
 # Network Playground
 
-Interactive network failure lab for simulating latency, jitter, and packet loss.
+A hands-on network fault injection playground for learning latency, packet loss, jitter, and service degradation.
+
+Built with:
+
+- FastAPI
+- Redis
+- Docker
+- React
+- Chart.js
+
+The project simulates real-world network failures and visualizes their impact through live probes, metrics, and event logs.
 
 ## Features
 
-- FastAPI backend
-- React dashboard
-- Redis probe target
-- Docker Compose setup
-- Latency injection with Linux `tc`/`netem`
+### Network Fault Injection
+- Latency injection using Linux tc / netem
 - Jitter simulation
 - Packet loss simulation
+- One-click preset scenarios
+- Network reset
+
+### Continuous Probing
+- Automatic probe execution every second
+- Redis connectivity checks
+- Success and failure tracking
+- Rolling probe history
+
+### Dashboard
 - Network health status
-- Probe duration chart
-- Success rate tracking
-- Event log and presets
+- Current preset
+- Last probe result
+- Success rate
+- Failure count
+- Total probes
+
+### Visualization
+- Live latency trend chart
+- Failed probe markers
+- Recent probe history
+
+### Event Log
+- Fault injection events
+- Preset changes
+- Network reset events
+- Probe failure detection
+- Probe recovery detection
+
+Event history keeps the latest 50 events.
 
 ## Architecture
 
@@ -76,7 +109,26 @@ curl -X POST http://localhost:8000/network/preset \
 | `normal`   | 0ms     | 0ms    | 0%          |
 | `slow`     | 500ms   | 50ms   | 0%          |
 | `bad-wifi` | 200ms   | 80ms   | 10%         |
-| `broken`   | 700ms   | 150ms  | 40%         |
+| `broken`   | 800ms   | 200ms  | 60%         |
+
+
+## Health States
+
+| State      | Condition               |
+| ---------- | ------------------------| 
+| `Healthy`  | No degradation detected | 
+| `Degraded` | Packet loss present     | 
+| `Slow`     | High latency or jitter  | 
+| `broken`   | Severe packet loss      | 
+
+## What I Learned
+
+- Linux traffic control (tc)
+- Network fault simulation
+- Latency, packet loss, and jitter behavior
+- Health probing strategies
+- Real-time dashboard updates with React
+- perational visibility through metrics and event logs
 
 ## Notes
 

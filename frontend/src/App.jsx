@@ -32,10 +32,12 @@ function App() {
   const [delayMs, setDelayMs] = useState(500);
   const [loading, setLoading] = useState(false);
   const [probeHistory, setProbeHistory] = useState([]);
-  const probingRef = useRef(false);
   const [lossPercent, setLossPercent] = useState(30);
   const [events, setEvents] = useState([]);
   const [jitterMs, setJitterMs] = useState(0);
+  const probingRef = useRef(false);
+  const previousProbeSuccessRef = useRef(true);
+
 
   async function fetchStatus() {
     const res = await fetch(`${API_BASE}/network/status`);
@@ -60,6 +62,16 @@ function App() {
 
       setProbe(data);
 
+      if (previousProbeSuccessRef.current && !data.success) {
+        addEvent("PROBE FAILED", "Connection timeout");
+      }
+
+      if (!previousProbeSuccessRef.current && data.success) {
+        addEvent("PROBE RECOVERED", `${data.duration_ms}ms`);
+      }
+
+      previousProbeSuccessRef.current = data.success;
+
       setProbeHistory((previous) => [
         ...previous.slice(-19),
         {
@@ -75,6 +87,12 @@ function App() {
       };
 
       setProbe(failedProbe);
+
+      if (previousProbeSuccessRef.current) {
+        addEvent("PROBE FAILED", "Request timeout");
+      }
+
+      previousProbeSuccessRef.current = false;
 
       setProbeHistory((previous) => [
         ...previous.slice(-19),
@@ -169,10 +187,13 @@ function App() {
   function getNetworkHealth(status) {
     if (!status) return "Unknown";
 
-    if (status.packet_loss_percent >= 50) return "Broken";
-    if (status.packet_loss_percent > 0) return "Degraded";
-    if (status.latency_ms >= 500) return "Slow";
-    if (status.enabled) return "Faulted";
+    const loss = status.packet_loss_percent ?? 0;
+    const latency = status.latency_ms ?? 0;
+    const jitter = status.jitter_ms ?? 0;
+
+    if (loss >= 50) return "Broken";
+    if (latency >= 500 || jitter >= 100) return "Slow";
+    if (loss > 0) return "Degraded";
 
     return "Healthy";
   }
@@ -221,12 +242,20 @@ function App() {
         return "#a855f7";
       case "RESET":
         return "#22c55e";
-      case "PROBE":
+      case "PROBE FAILED":
         return "#ef4444";
+      case "PROBE RECOVERED":
+        return "#22c55e";
       default:
         return "#94a3b8";
     }
   }
+
+  function getSuccessRateColor(rate) {
+  if (rate >= 90) return "#22c55e";
+  if (rate >= 60) return "#eab308";
+  return "#ef4444";
+}
 
   const networkHealth = getNetworkHealth(status);
   const healthColor = getHealthColor(networkHealth);
@@ -288,7 +317,9 @@ function App() {
         </Card>
 
         <Card title="Success Rate">
-          <strong>{successRate}%</strong>
+          <strong style={{ color: getSuccessRateColor(successRate) }}>
+            {successRate}%
+          </strong>
         </Card>
 
         <Card title="Total Probes">
@@ -390,17 +421,24 @@ function App() {
                 data: probeHistory.map((item) =>
                   item.success ? item.duration_ms : null
                 ),
-
                 borderColor: "#38bdf8",
                 backgroundColor: "rgba(56,189,248,0.2)",
-
                 borderWidth: 3,
-
                 pointRadius: 4,
                 pointHoverRadius: 6,
-
                 tension: 0.3,
                 fill: true,
+              },
+              {
+                label: "Failed probe",
+                data: probeHistory.map((item) =>
+                  item.success ? null : 1000
+                ),
+                borderColor: "#ef4444",
+                backgroundColor: "#ef4444",
+                pointRadius: 6,
+                pointHoverRadius: 8,
+                showLine: false,
               },
             ],
           }}
@@ -427,6 +465,7 @@ function App() {
 
               y: {
                 min: 0,
+                suggestedMax: 1000,
 
                 ticks: {
                   color: "#94a3b8",

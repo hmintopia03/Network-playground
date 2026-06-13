@@ -46,7 +46,7 @@ PRESETS = {
     "normal": {"latency_ms": 0, "jitter_ms": 0, "packet_loss_percent": 0},
     "slow": {"latency_ms": 500, "jitter_ms": 50, "packet_loss_percent": 0},
     "bad-wifi": {"latency_ms": 200, "jitter_ms": 80, "packet_loss_percent": 10},
-    "broken": {"latency_ms": 700, "jitter_ms": 150, "packet_loss_percent": 40},
+    "broken": {"latency_ms": 800, "jitter_ms": 200, "packet_loss_percent": 60},
 }
 
 @app.get("/health")
